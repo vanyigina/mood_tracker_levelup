@@ -204,6 +204,7 @@
       </div>
       <div class="modebadge" id="modebadge"></div>
       <div class="btnrow" style="padding-top:0">
+        <button class="btn ghost" onclick="deleteQuarter()" style="color:var(--terra)">🗑 A megjelenített negyedév válaszainak törlése</button>
         <button class="btn ghost" onclick="go('s-intro')">← Kilépés</button>
       </div>
     </div>
@@ -215,12 +216,12 @@
 <script>
 /* =========================================================================
    BEÁLLÍTÁS — ezt a két sort kell kitölteni az éles használathoz.
-   A telepítési útmutató (Bekotes_utmutato) lépésről lépésre leírja, honnan
-   jön az ENDPOINT érték. Amíg üresen hagyod, az app DEMO módban fut:
-   nem küld sehova adatot, a dashboard beépített példaadatot mutat.
+   jön az ENDPOINT érték (a Bekotes_utmutato leírja). Most ez ki van töltve,
+   az app ÉLES módban fut: a kitöltések a Google-táblába kerülnek, a dashboard
+   onnan olvas. Ha az ENDPOINT-ot üresre törlöd, TESZT módba vált (nincs adat).
    ========================================================================= */
 const CONFIG = {
-  ENDPOINT: "",                       // ide jön a Google Apps Script /exec URL-je
+  ENDPOINT: "https://script.google.com/macros/s/AKfycbztE3lVOWHrHhBtSEuN_9fjjFpXRRgN-miZbTDD3D0aXfFnnEubPjJ5VZhJCiT1EcZw/exec",                       // ide jön a Google Apps Script /exec URL-je
   DASHBOARD_PASSWORD: "alfoldi2026",   // a vezetői dashboard jelszava — írd át!
   QUARTER: "2026 Q2"                   // az aktuális mérési időszak címkéje
 };
@@ -254,39 +255,8 @@ const TENURES = ['Kevesebb mint 1 éve','1–5 éve','5–10 éve','Több mint 1
 const HEADCOUNT = 210;
 const LIVE_MODE = CONFIG.ENDPOINT && CONFIG.ENDPOINT.indexOf('http')===0;
 
-/* ---------- DEMO PÉLDAADAT (csak ha nincs ENDPOINT beállítva) ---------- */
-function genQuarter(n, bias, qlabel){
-  const arr=[]; const deptW=[0.62,0.16,0.13,0.09];
-  for(let i=0;i<n;i++){
-    const r=Math.random(); let d=0,acc=0; for(let k=0;k<4;k++){acc+=deptW[k]; if(r<acc){d=k;break;}}
-    const o={quarter:qlabel, dept:(Math.random()<0.85?DEPTS[d]:null),
-             tenure:(Math.random()<0.8?TENURES[Math.floor(Math.random()*4)]:null), open:''};
-    QS.forEach(q=>{
-      let b=2+bias+(Math.random()*1.4-0.7);
-      if(q.id==='q5') b-=0.4; if(q.id==='q3') b+=0.15;
-      o[q.id]=Math.max(1,Math.min(3,Math.round(b)));
-    });
-    arr.push(o);
-  }
-  return arr;
-}
+/* ---------- (DEMO példaadat eltávolítva — éles üzem) ---------- */
 let DEMO=[];
-['2025 Q3','2025 Q4','2026 Q1','2026 Q2'].forEach((q,i)=>{
-  DEMO=DEMO.concat(genQuarter([58,64,71,83][i],[-0.15,-0.05,0.05,0.18][i],q));
-});
-const DEMO_OPEN={
-  '2026 Q2':['A Gyárnap idén tényleg jó volt, a család is élvezte.',
-    'A délutános műszakban kevés a targoncás, sokat kell várni az anyagra.',
-    'A CNC-tanfolyam sokat segített, köszönöm a lehetőséget.',
-    'A 2-es csarnokban meleg van nyáron, jó lenne valami hűtés.',
-    'Több visszajelzést szeretnék arról, hogy a beadott ötletekből mi lett.']
-};
-Object.keys(DEMO_OPEN).forEach(q=>{
-  let idx=0;
-  for(let i=0;i<DEMO.length && idx<DEMO_OPEN[q].length;i++){
-    if(DEMO[i].quarter===q){ DEMO[i].open=DEMO_OPEN[q][idx]; idx++; }
-  }
-});
 
 /* ---------- KITÖLTŐ LOGIKA ---------- */
 let idx=0, answers={}, bgSel={};
@@ -363,10 +333,12 @@ function submit(){
 function resetAll(){ go('s-intro'); }
 
 /* ---------- DASHBOARD ---------- */
-let ALLROWS=[];      // minden válaszsor (éles: a táblából; demo: példaadat)
+let ALLROWS=[];      // minden válaszsor (éles: a táblából olvasva)
 let trendChart=null;
+let DASH_PW='';      // a belépéskor megadott jelszó — a törlés hitelesítéséhez
 function login(){
   if(document.getElementById('pw').value===CONFIG.DASHBOARD_PASSWORD){
+    DASH_PW=document.getElementById('pw').value;
     document.getElementById('loginerr').style.display='none';
     document.getElementById('pw').value='';
     loadData();
@@ -383,9 +355,24 @@ function loadData(){
   } else {
     let demoLive=[];
     try{ demoLive=JSON.parse(localStorage.getItem('alfoldi_demo')||'[]'); }catch(e){}
-    ALLROWS=DEMO.concat(demoLive);
-    initDash('DEMO mód — beépített példaadat');
+    ALLROWS=demoLive;
+    initDash('TESZT mód — nincs ENDPOINT beállítva');
   }
+}
+function deleteQuarter(){
+  const q=document.getElementById('qselect').value;
+  if(!LIVE_MODE){
+    if(confirm('TESZT mód — a böngészőben tárolt válaszok törlése?')){
+      localStorage.removeItem('alfoldi_demo'); loadData();
+    }
+    return;
+  }
+  if(!confirm('Biztosan törlöd a(z) "'+q+'" időszak ÖSSZES válaszát?\n\nEz nem vonható vissza. Ha kellenek az adatok, előbb archiváld őket (Google-tábla → Fájl → Letöltés).')) return;
+  fetch(CONFIG.ENDPOINT,{method:'POST',mode:'no-cors',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({action:'clear',pw:DASH_PW,quarter:q}).toString()})
+    .then(()=>{ setTimeout(loadData,1000); })
+    .catch(()=>alert('A törlés nem sikerült. Próbáld újra.'));
 }
 function quartersIn(rows){
   const set={}; rows.forEach(r=>{ if(r.quarter) set[r.quarter]=1; });
