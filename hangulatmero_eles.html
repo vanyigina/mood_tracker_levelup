@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Alföldi Precíziós — Szervezeti hangulatmérő</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root{
+    --petrol:#1F4E5C; --petrol-light:#2D6E80; --petrol-pale:#E8F0F2;
+    --grey-green:#88A0A0; --grey-pale:#F0EEE9; --terra:#C66A4A; --terra-soft:#E89B7E;
+    --terra-pale:#FAEBE3; --cream:#F8F4ED; --anthra:#2A3942; --grey-text:#6B7780;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,"Helvetica Neue",Arial,sans-serif;
+    background:var(--cream); color:var(--anthra); line-height:1.6;
+    display:flex; flex-direction:column; min-height:100%;
+  }
+  .wrap{flex:1; display:flex; flex-direction:column; max-width:560px; margin:0 auto; width:100%; padding:20px;}
+  .screen{display:none; flex:1; flex-direction:column;}
+  .screen.active{display:flex;}
+  .brandbar{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--grey-green); margin-bottom:6px;}
+  .brandbar .dot{width:9px;height:9px;background:var(--petrol);transform:rotate(45deg);}
+  h1{font-size:24px; font-weight:600; color:var(--petrol); margin-bottom:14px;}
+  h2{font-size:20px; font-weight:600; color:var(--petrol);}
+  p{font-size:15px; margin-bottom:14px;}
+  .muted{color:var(--grey-text); font-size:13px;}
+  .progress{display:flex; gap:5px; margin-bottom:24px;}
+  .progress span{flex:1; height:5px; border-radius:3px; background:var(--petrol-pale);}
+  .progress span.done{background:var(--petrol);}
+  .progress span.cur{background:var(--terra);}
+  .qnum{font-size:13px; color:var(--grey-green); margin-bottom:8px;}
+  .qtext{font-size:22px; font-weight:600; color:var(--anthra); margin-bottom:28px; line-height:1.35;}
+  .opts{display:flex; flex-direction:column; gap:12px;}
+  .opt{
+    background:#fff; border:2px solid var(--petrol-pale); border-radius:14px;
+    padding:18px 20px; font-size:17px; font-weight:500; color:var(--anthra);
+    cursor:pointer; text-align:left; transition:border-color .12s, background .12s;
+    display:flex; align-items:center; gap:14px;
+  }
+  .opt:hover{border-color:var(--petrol-light);}
+  .opt:active{background:var(--petrol-pale);}
+  .opt.sel{border-color:var(--petrol); background:var(--petrol-pale);}
+  .opt .emo{font-size:30px; line-height:1;}
+  .btn{
+    background:var(--petrol); color:#fff; border:none; border-radius:14px;
+    padding:16px; font-size:16px; font-weight:600; cursor:pointer; width:100%;
+    transition:background .12s;
+  }
+  .btn:hover{background:var(--petrol-light);}
+  .btn.ghost{background:transparent; color:var(--grey-text); font-weight:500; padding:12px;}
+  .btn.ghost:hover{background:transparent; color:var(--petrol);}
+  .btn:disabled{opacity:.5; cursor:default;}
+  .btnrow{margin-top:auto; padding-top:24px;}
+  textarea{
+    width:100%; min-height:130px; border:2px solid var(--petrol-pale); border-radius:14px;
+    padding:16px; font-size:16px; font-family:inherit; resize:vertical; color:var(--anthra);
+  }
+  textarea:focus{outline:none; border-color:var(--petrol-light);}
+  .anon-note{
+    background:var(--petrol-pale); border-radius:12px; padding:14px 16px;
+    font-size:13px; color:var(--petrol); margin-bottom:20px; line-height:1.5;
+  }
+  .center{align-items:center; text-align:center; justify-content:center;}
+  .center h1{margin-top:0;}
+  .bigemo{font-size:64px; margin-bottom:8px;}
+  footer{text-align:center; font-size:11px; color:var(--grey-green); padding:14px 0 4px;}
+  .adminlink{color:var(--grey-green); font-size:11px; text-decoration:underline; cursor:pointer; background:none; border:none;}
+  .dash{max-width:880px;}
+  .dash-head{display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:10px; margin-bottom:6px;}
+  .qsel{border:2px solid var(--petrol-pale); border-radius:10px; padding:8px 12px; font-size:14px; font-family:inherit; color:var(--anthra); background:#fff;}
+  .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:18px 0;}
+  .card{background:#fff; border:1px solid var(--petrol-pale); border-radius:14px; padding:16px;}
+  .card .lbl{font-size:12px; color:var(--grey-text); margin-bottom:6px;}
+  .card .val{font-size:30px; font-weight:600; color:var(--petrol);}
+  .card .sub{font-size:12px; margin-top:4px;}
+  .up{color:#1D9E75;} .down{color:var(--terra);} .flat{color:var(--grey-text);}
+  .panel{background:#fff; border:1px solid var(--petrol-pale); border-radius:14px; padding:18px; margin-bottom:16px;}
+  .panel h3{font-size:16px; font-weight:600; color:var(--petrol); margin-bottom:14px;}
+  .theme-row{display:flex; align-items:center; gap:12px; margin-bottom:14px;}
+  .theme-row .tname{flex:0 0 190px; font-size:14px; font-weight:500;}
+  .bar{flex:1; height:22px; background:var(--grey-pale); border-radius:6px; overflow:hidden;}
+  .bar i{display:block; height:100%; border-radius:6px;}
+  .theme-row .tval{flex:0 0 86px; text-align:right; font-size:14px; font-weight:600;}
+  .chartbox{position:relative; height:260px;}
+  .open-item{border-left:3px solid var(--terra); padding:8px 0 8px 14px; margin-bottom:12px; font-size:14px;}
+  .open-item .meta{font-size:11px; color:var(--grey-green); margin-top:3px;}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th,td{text-align:left; padding:9px 8px; border-bottom:1px solid var(--petrol-pale);}
+  th{color:var(--grey-text); font-weight:500; font-size:12px;}
+  td.num{text-align:right; font-variant-numeric:tabular-nums;}
+  .supp{color:var(--grey-green); font-style:italic; font-size:12px;}
+  .login-box{max-width:360px; margin:40px auto 0;}
+  .login-box input{width:100%; border:2px solid var(--petrol-pale); border-radius:12px; padding:14px; font-size:16px; font-family:inherit; margin-bottom:12px;}
+  .login-box input:focus{outline:none; border-color:var(--petrol-light);}
+  .err{color:var(--terra); font-size:13px; margin-bottom:10px; display:none;}
+  .pill{display:inline-block; background:var(--terra-pale); color:var(--terra); font-size:11px; font-weight:600; padding:3px 9px; border-radius:8px; margin-left:8px;}
+  .modebadge{font-size:11px; color:var(--grey-green); text-align:center; padding:6px 0;}
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+
+  <section class="screen active center" id="s-intro">
+    <div class="brandbar"><span class="dot"></span> Diamond Coaching &amp; Development Kft.</div>
+    <div class="bigemo">🙂</div>
+    <h1>Hogy érzed magad mostanában?</h1>
+    <p>Ez egy névtelen, egyperces kérdőív az Alföldi Precíziós dolgozóinak. Nincs bejelentkezés, nincs név — csak hét gyors kérdés.</p>
+    <div class="anon-note">A válaszaidat csak összesítve, legalább 5 fős csoportokban nézzük. Egyetlen választ sem lehet visszafejteni hozzád.</div>
+    <div class="btnrow" style="width:100%">
+      <button class="btn" onclick="start()">Kezdjük</button>
+      <button class="adminlink" style="margin-top:14px" onclick="go('s-login')">Vezetői nézet</button>
+    </div>
+  </section>
+
+  <section class="screen" id="s-q"><div class="progress" id="prog"></div>
+    <div class="qnum" id="qnum"></div>
+    <div class="qtext" id="qtext"></div>
+    <div class="opts" id="opts"></div>
+    <div class="btnrow"><button class="btn ghost" id="backbtn" onclick="prevQ()">← Vissza</button></div>
+  </section>
+
+  <section class="screen" id="s-open">
+    <div class="qnum">+1 — nem kötelező</div>
+    <div class="qtext">Mondj egy dolgot.</div>
+    <p class="muted">Bármi, ami jól megy, vagy ami zavar. Üresen is hagyhatod.</p>
+    <textarea id="opentext" placeholder="Írd ide…"></textarea>
+    <div class="btnrow">
+      <button class="btn" onclick="go('s-bg1')">Tovább</button>
+      <button class="btn ghost" onclick="prevToLast()">← Vissza</button>
+    </div>
+  </section>
+
+  <section class="screen" id="s-bg1">
+    <div class="qnum">Háttér — nem kötelező</div>
+    <div class="qtext">Melyik területen dolgozol?</div>
+    <div class="anon-note">Ezek nem kötelezőek, és csak összesítve, legalább 5 fős csoportokban nézzük.</div>
+    <div class="opts" id="bg1opts"></div>
+    <div class="btnrow"><button class="btn ghost" onclick="skipBg('dept')">Kihagyom</button></div>
+  </section>
+
+  <section class="screen" id="s-bg2">
+    <div class="qnum">Háttér — nem kötelező</div>
+    <div class="qtext">Mióta dolgozol nálunk?</div>
+    <div class="opts" id="bg2opts"></div>
+    <div class="btnrow"><button class="btn ghost" onclick="skipBg('tenure')">Kihagyom</button></div>
+  </section>
+
+  <section class="screen center" id="s-sending">
+    <div class="bigemo">⏳</div>
+    <h1>Küldés…</h1>
+    <p class="muted">Egy pillanat.</p>
+  </section>
+
+  <section class="screen center" id="s-thanks">
+    <div class="bigemo">✓</div>
+    <h1>Köszönjük!</h1>
+    <p>A válaszod megérkezett — névtelenül.</p>
+    <div class="anon-note" style="text-align:left">
+      Mi történik most? A negyedév végén a vezetőség összesítve megnézi az eredményeket, és legalább egy konkrét dologban lépünk. Hogy miben — azt vissza fogjuk mondani nektek. Ez nem süllyed el egy fiókban.
+    </div>
+    <div class="btnrow" style="width:100%"><button class="btn ghost" onclick="resetAll()">Új kitöltés</button></div>
+  </section>
+
+  <section class="screen" id="s-login">
+    <div class="brandbar"><span class="dot"></span> Vezetői nézet</div>
+    <div class="login-box">
+      <h2 style="margin-bottom:16px">Belépés</h2>
+      <div class="err" id="loginerr">Hibás jelszó.</div>
+      <input type="password" id="pw" placeholder="Jelszó" onkeydown="if(event.key==='Enter')login()">
+      <button class="btn" onclick="login()">Belépés</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="go('s-intro')">← Vissza a kérdőívhez</button>
+    </div>
+  </section>
+
+  <section class="screen" id="s-dash">
+    <div class="dash" style="width:100%">
+      <div class="dash-head">
+        <div>
+          <div class="brandbar"><span class="dot"></span> Diamond Coaching &amp; Development Kft.</div>
+          <h2>Szervezeti hangulatmérő — Alföldi Precíziós ZRT.</h2>
+        </div>
+        <select class="qsel" id="qselect" onchange="renderDash()"></select>
+      </div>
+      <div class="cards" id="kpicards"></div>
+      <div class="panel">
+        <h3>A négy témakör — kiválasztott negyedév</h3>
+        <div id="themebars"></div>
+      </div>
+      <div class="panel">
+        <h3>Trend negyedévről negyedévre</h3>
+        <div class="chartbox"><canvas id="trendchart" role="img" aria-label="A négy témakör átlagpontszámának alakulása negyedévenként"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3>Eredmények részlegenként <span class="pill">5 fős küszöb</span></h3>
+        <table id="depttable"></table>
+        <p class="supp" style="margin-top:10px" id="suppnote"></p>
+      </div>
+      <div class="panel">
+        <h3>Nyitott válaszok — „Mondj egy dolgot"</h3>
+        <div id="openlist"></div>
+      </div>
+      <div class="modebadge" id="modebadge"></div>
+      <div class="btnrow" style="padding-top:0">
+        <button class="btn ghost" onclick="go('s-intro')">← Kilépés</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+<footer>Diamond Coaching &amp; Development Kft. — szervezeti hangulatmérő • 2026 • Alföldi Precíziós ZRT.</footer>
+
+<script>
+/* =========================================================================
+   BEÁLLÍTÁS — ezt a két sort kell kitölteni az éles használathoz.
+   A telepítési útmutató (Bekotes_utmutato) lépésről lépésre leírja, honnan
+   jön az ENDPOINT érték. Amíg üresen hagyod, az app DEMO módban fut:
+   nem küld sehova adatot, a dashboard beépített példaadatot mutat.
+   ========================================================================= */
+const CONFIG = {
+  ENDPOINT: "",                       // ide jön a Google Apps Script /exec URL-je
+  DASHBOARD_PASSWORD: "alfoldi2026",   // a vezetői dashboard jelszava — írd át!
+  QUARTER: "2026 Q2"                   // az aktuális mérési időszak címkéje
+};
+
+/* ---------- KÉRDÉSEK ---------- */
+const QS = [
+  {id:'q1', theme:'hangulat', q:'Milyen volt ez a negyedév?',
+   opts:[{e:'😖',t:'Nehéz',v:1},{e:'😐',t:'Vegyes',v:2},{e:'🙂',t:'Jó',v:3}]},
+  {id:'q2', theme:'hangulat', q:'Holnap is szívesen jössz be dolgozni?',
+   opts:[{t:'Inkább nem',v:1},{t:'Megvagyok',v:2},{t:'Igen, szívesen',v:3}]},
+  {id:'q3', theme:'vezeto', q:'Ha probléma van, számíthatsz a vezetődre?',
+   opts:[{t:'Nem igazán',v:1},{t:'Néha',v:2},{t:'Igen',v:3}]},
+  {id:'q4', theme:'fejlodes', q:'Tanulsz itt olyat, ami előrevisz?',
+   opts:[{t:'Nem',v:1},{t:'Egy keveset',v:2},{t:'Igen, rendszeresen',v:3}]},
+  {id:'q5', theme:'korulmeny', q:'Bírod a mostani munkatempót?',
+   opts:[{t:'Nehezen',v:1},{t:'Változó',v:2},{t:'Igen',v:3}]},
+  {id:'q6', theme:'fejlodes', q:'Érezted mostanában, hogy számít, amit csinálsz?',
+   opts:[{t:'Nem',v:1},{t:'Néha',v:2},{t:'Igen',v:3}]},
+  {id:'q7', theme:'ajanlas', q:'Ajánlanád másnak, hogy itt dolgozzon?',
+   opts:[{t:'Nem',v:1},{t:'Talán',v:2},{t:'Igen',v:3}]}
+];
+const THEMES = {
+  hangulat:'Általános elégedettség &amp; hangulat',
+  vezeto:'Vezetővel való kapcsolat',
+  fejlodes:'Fejlődés &amp; elismerés',
+  korulmeny:'Munkakörülmények &amp; terhelés',
+  ajanlas:'Ajánlás (eNPS jellegű)'
+};
+const DEPTS = ['Termelés','Műszaki-mérnöki','Logisztika-raktár','Adminisztráció-vezetés'];
+const TENURES = ['Kevesebb mint 1 éve','1–5 éve','5–10 éve','Több mint 10 éve'];
+const HEADCOUNT = 210;
+const LIVE_MODE = CONFIG.ENDPOINT && CONFIG.ENDPOINT.indexOf('http')===0;
+
+/* ---------- DEMO PÉLDAADAT (csak ha nincs ENDPOINT beállítva) ---------- */
+function genQuarter(n, bias, qlabel){
+  const arr=[]; const deptW=[0.62,0.16,0.13,0.09];
+  for(let i=0;i<n;i++){
+    const r=Math.random(); let d=0,acc=0; for(let k=0;k<4;k++){acc+=deptW[k]; if(r<acc){d=k;break;}}
+    const o={quarter:qlabel, dept:(Math.random()<0.85?DEPTS[d]:null),
+             tenure:(Math.random()<0.8?TENURES[Math.floor(Math.random()*4)]:null), open:''};
+    QS.forEach(q=>{
+      let b=2+bias+(Math.random()*1.4-0.7);
+      if(q.id==='q5') b-=0.4; if(q.id==='q3') b+=0.15;
+      o[q.id]=Math.max(1,Math.min(3,Math.round(b)));
+    });
+    arr.push(o);
+  }
+  return arr;
+}
+let DEMO=[];
+['2025 Q3','2025 Q4','2026 Q1','2026 Q2'].forEach((q,i)=>{
+  DEMO=DEMO.concat(genQuarter([58,64,71,83][i],[-0.15,-0.05,0.05,0.18][i],q));
+});
+const DEMO_OPEN={
+  '2026 Q2':['A Gyárnap idén tényleg jó volt, a család is élvezte.',
+    'A délutános műszakban kevés a targoncás, sokat kell várni az anyagra.',
+    'A CNC-tanfolyam sokat segített, köszönöm a lehetőséget.',
+    'A 2-es csarnokban meleg van nyáron, jó lenne valami hűtés.',
+    'Több visszajelzést szeretnék arról, hogy a beadott ötletekből mi lett.']
+};
+Object.keys(DEMO_OPEN).forEach(q=>{
+  let idx=0;
+  for(let i=0;i<DEMO.length && idx<DEMO_OPEN[q].length;i++){
+    if(DEMO[i].quarter===q){ DEMO[i].open=DEMO_OPEN[q][idx]; idx++; }
+  }
+});
+
+/* ---------- KITÖLTŐ LOGIKA ---------- */
+let idx=0, answers={}, bgSel={};
+function go(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+function start(){ idx=0; answers={}; bgSel={}; document.getElementById('opentext').value=''; renderQ(); go('s-q'); }
+function renderProg(){
+  const el=document.getElementById('prog'); el.innerHTML='';
+  for(let i=0;i<QS.length;i++){
+    const s=document.createElement('span');
+    if(i<idx)s.className='done'; if(i===idx)s.className='cur';
+    el.appendChild(s);
+  }
+}
+function renderQ(){
+  const q=QS[idx];
+  renderProg();
+  document.getElementById('qnum').textContent=(idx+1)+' / '+QS.length;
+  document.getElementById('qtext').textContent=q.q;
+  document.getElementById('backbtn').style.visibility=idx===0?'hidden':'visible';
+  const box=document.getElementById('opts'); box.innerHTML='';
+  q.opts.forEach(o=>{
+    const b=document.createElement('button');
+    b.className='opt'+(answers[q.id]===o.v?' sel':'');
+    b.innerHTML=(o.e?'<span class="emo">'+o.e+'</span>':'')+'<span>'+o.t+'</span>';
+    b.onclick=()=>{ answers[q.id]=o.v; renderQ(); setTimeout(nextQ,180); };
+    box.appendChild(b);
+  });
+}
+function nextQ(){ if(idx<QS.length-1){ idx++; renderQ(); } else { go('s-open'); } }
+function prevQ(){ if(idx>0){ idx--; renderQ(); } }
+function prevToLast(){ idx=QS.length-1; renderQ(); go('s-q'); }
+function renderBg(){
+  const b1=document.getElementById('bg1opts'); b1.innerHTML='';
+  DEPTS.forEach(d=>{
+    const btn=document.createElement('button'); btn.className='opt';
+    btn.textContent=d; btn.onclick=()=>{ bgSel.dept=d; go('s-bg2'); };
+    b1.appendChild(btn);
+  });
+  const b2=document.getElementById('bg2opts'); b2.innerHTML='';
+  TENURES.forEach(t=>{
+    const btn=document.createElement('button'); btn.className='opt';
+    btn.textContent=t; btn.onclick=()=>{ bgSel.tenure=t; submit(); };
+    b2.appendChild(btn);
+  });
+}
+function skipBg(which){
+  if(which==='dept'){ bgSel.dept=null; go('s-bg2'); }
+  else { bgSel.tenure=null; submit(); }
+}
+function submit(){
+  const r={ quarter:CONFIG.QUARTER };
+  QS.forEach(q=>r[q.id]=answers[q.id]||'');
+  r.dept=bgSel.dept||''; r.tenure=bgSel.tenure||'';
+  r.open=(document.getElementById('opentext').value||'').trim();
+  if(LIVE_MODE){
+    go('s-sending');
+    const body=new URLSearchParams(r).toString();
+    fetch(CONFIG.ENDPOINT,{method:'POST',mode:'no-cors',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body})
+      .then(()=>go('s-thanks'))
+      .catch(()=>{ /* hálózati hiba esetén is köszönünk – a kitöltőt ne büntessük */
+        go('s-thanks'); });
+  } else {
+    /* DEMO mód: helyben tároljuk, hogy a dashboard mutasson valamit */
+    try{ let l=JSON.parse(localStorage.getItem('alfoldi_demo')||'[]'); l.push(r);
+      localStorage.setItem('alfoldi_demo',JSON.stringify(l)); }catch(e){}
+    go('s-thanks');
+  }
+}
+function resetAll(){ go('s-intro'); }
+
+/* ---------- DASHBOARD ---------- */
+let ALLROWS=[];      // minden válaszsor (éles: a táblából; demo: példaadat)
+let trendChart=null;
+function login(){
+  if(document.getElementById('pw').value===CONFIG.DASHBOARD_PASSWORD){
+    document.getElementById('loginerr').style.display='none';
+    document.getElementById('pw').value='';
+    loadData();
+  } else {
+    document.getElementById('loginerr').style.display='block';
+  }
+}
+function loadData(){
+  if(LIVE_MODE){
+    fetch(CONFIG.ENDPOINT+'?action=rows')
+      .then(r=>r.json())
+      .then(rows=>{ ALLROWS=rows||[]; initDash('éles adat'); })
+      .catch(()=>{ ALLROWS=[]; initDash('nem sikerült betölteni — ellenőrizd az ENDPOINT-ot'); });
+  } else {
+    let demoLive=[];
+    try{ demoLive=JSON.parse(localStorage.getItem('alfoldi_demo')||'[]'); }catch(e){}
+    ALLROWS=DEMO.concat(demoLive);
+    initDash('DEMO mód — beépített példaadat');
+  }
+}
+function quartersIn(rows){
+  const set={}; rows.forEach(r=>{ if(r.quarter) set[r.quarter]=1; });
+  let qs=Object.keys(set);
+  if(qs.indexOf(CONFIG.QUARTER)<0) qs.push(CONFIG.QUARTER);
+  return qs.sort();
+}
+function initDash(modeText){
+  document.getElementById('modebadge').textContent=modeText;
+  const sel=document.getElementById('qselect'); sel.innerHTML='';
+  const qs=quartersIn(ALLROWS);
+  qs.forEach(q=>{
+    const o=document.createElement('option'); o.value=q; o.textContent=q;
+    if(q===CONFIG.QUARTER)o.selected=true;
+    sel.appendChild(o);
+  });
+  go('s-dash'); renderDash();
+}
+function rowsForQ(q){ return ALLROWS.filter(r=>r.quarter===q); }
+function themeScore(rows,theme){
+  const ids=QS.filter(q=>q.theme===theme).map(q=>q.id);
+  let s=0,c=0;
+  rows.forEach(r=>ids.forEach(id=>{ const v=Number(r[id]); if(v>=1&&v<=3){ s+=v; c++; }}));
+  return c?s/c:null;
+}
+function pct(score){ return score==null?null:Math.round((score-1)/2*100); }
+function barColor(p){ if(p>=67)return '#1F4E5C'; if(p>=45)return '#88A0A0'; return '#C66A4A'; }
+function renderDash(){
+  const qLabel=document.getElementById('qselect').value;
+  const rows=rowsForQ(qLabel);
+  const quarters=quartersIn(ALLROWS);
+  const qIdx=quarters.indexOf(qLabel);
+  const prev=qIdx>0?rowsForQ(quarters[qIdx-1]):null;
+
+  const n=rows.length;
+  const rate=Math.round(n/HEADCOUNT*100);
+  const openCnt=rows.filter(r=>r.open && (''+r.open).trim().length).length;
+  const openRate=n?Math.round(openCnt/n*100):0;
+  const overall=themeScore(rows,'hangulat');
+  const ovPrev=prev?themeScore(prev,'hangulat'):null;
+  let trendTxt='—', trendCls='flat';
+  if(ovPrev!=null && overall!=null){
+    const d=pct(overall)-pct(ovPrev);
+    if(d>2){trendTxt='▲ +'+d+' pont';trendCls='up';}
+    else if(d<-2){trendTxt='▼ '+d+' pont';trendCls='down';}
+    else {trendTxt='≈ stabil';trendCls='flat';}
+  }
+  document.getElementById('kpicards').innerHTML=
+    '<div class="card"><div class="lbl">Kitöltések</div><div class="val">'+n+'</div><div class="sub muted">'+HEADCOUNT+' főből</div></div>'+
+    '<div class="card"><div class="lbl">Kitöltési arány</div><div class="val">'+rate+'%</div><div class="sub '+(rate>=40?'up':'down')+'">'+(rate>=40?'cél felett':'cél alatt (40%)')+'</div></div>'+
+    '<div class="card"><div class="lbl">Általános hangulat</div><div class="val">'+(pct(overall)==null?'—':pct(overall)+'%')+'</div><div class="sub '+trendCls+'">'+trendTxt+'</div></div>'+
+    '<div class="card"><div class="lbl">Nyitott választ írt</div><div class="val">'+openRate+'%</div><div class="sub muted">'+openCnt+' fő</div></div>';
+
+  const tb=document.getElementById('themebars'); tb.innerHTML='';
+  ['hangulat','vezeto','fejlodes','korulmeny','ajanlas'].forEach(t=>{
+    const p=pct(themeScore(rows,t));
+    const row=document.createElement('div'); row.className='theme-row';
+    row.innerHTML='<div class="tname">'+THEMES[t]+'</div>'+
+      '<div class="bar"><i style="width:'+(p||0)+'%;background:'+barColor(p||0)+'"></i></div>'+
+      '<div class="tval">'+(p==null?'—':p+'%')+'</div>';
+    tb.appendChild(row);
+  });
+
+  const series={hangulat:[],vezeto:[],fejlodes:[],korulmeny:[]};
+  quarters.forEach(q=>{
+    const rws=rowsForQ(q);
+    series.hangulat.push(pct(themeScore(rws,'hangulat')));
+    series.vezeto.push(pct(themeScore(rws,'vezeto')));
+    series.fejlodes.push(pct(themeScore(rws,'fejlodes')));
+    series.korulmeny.push(pct(themeScore(rws,'korulmeny')));
+  });
+  if(trendChart)trendChart.destroy();
+  trendChart=new Chart(document.getElementById('trendchart'),{
+    type:'line',
+    data:{labels:quarters,datasets:[
+      {label:'Hangulat',data:series.hangulat,borderColor:'#1F4E5C',backgroundColor:'#1F4E5C',tension:.3},
+      {label:'Vezető',data:series.vezeto,borderColor:'#2D6E80',backgroundColor:'#2D6E80',borderDash:[6,4],tension:.3},
+      {label:'Fejlődés',data:series.fejlodes,borderColor:'#C66A4A',backgroundColor:'#C66A4A',tension:.3},
+      {label:'Körülmények',data:series.korulmeny,borderColor:'#88A0A0',backgroundColor:'#88A0A0',borderDash:[3,3],tension:.3}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}},
+      plugins:{legend:{position:'bottom',labels:{usePointStyle:true,boxWidth:8,font:{size:12}}}}}
+  });
+
+  let suppressed=false;
+  let html='<tr><th>Részleg</th><th>Fő</th><th>Hangulat</th><th>Vezető</th><th>Fejlődés</th><th>Körülmények</th></tr>';
+  DEPTS.forEach(d=>{
+    const sub=rows.filter(r=>r.dept===d);
+    if(sub.length<5){
+      suppressed=true;
+      html+='<tr><td>'+d+'</td><td class="num">'+sub.length+'</td><td colspan="4" class="supp">elrejtve — 5 fő alatti csoport</td></tr>';
+    } else {
+      html+='<tr><td>'+d+'</td><td class="num">'+sub.length+'</td>'+
+        '<td class="num">'+pct(themeScore(sub,'hangulat'))+'%</td>'+
+        '<td class="num">'+pct(themeScore(sub,'vezeto'))+'%</td>'+
+        '<td class="num">'+pct(themeScore(sub,'fejlodes'))+'%</td>'+
+        '<td class="num">'+pct(themeScore(sub,'korulmeny'))+'%</td></tr>';
+    }
+  });
+  const noDept=rows.filter(r=>!r.dept).length;
+  html+='<tr><td class="muted">Nem adta meg</td><td class="num muted">'+noDept+'</td><td colspan="4" class="supp">nincs bontás</td></tr>';
+  document.getElementById('depttable').innerHTML=html;
+  document.getElementById('suppnote').textContent=suppressed
+    ? 'Az 5 főnél kisebb csoportok eredményét nem jelenítjük meg — ez védi a kitöltők anonimitását.'
+    : 'Minden részleg elérte az 5 fős küszöböt.';
+
+  const ol=document.getElementById('openlist'); ol.innerHTML='';
+  const opens=rows.filter(r=>r.open && (''+r.open).trim().length);
+  if(!opens.length){ ol.innerHTML='<p class="muted">Ehhez a negyedévhez még nincs nyitott válasz.</p>'; }
+  opens.slice().reverse().forEach(r=>{
+    const dv=document.createElement('div'); dv.className='open-item';
+    dv.innerHTML=(''+r.open).replace(/</g,'&lt;')+'<div class="meta">'+(r.dept||'részleg nem megadva')+'</div>';
+    ol.appendChild(dv);
+  });
+}
+
+renderBg();
+</script>
+</body>
+</html>
